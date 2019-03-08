@@ -2,13 +2,15 @@ import os
 import re
 import time
 import random
-import requests
 import threading
-from proxy_config import *
 from multiprocessing import Pool
+import requests
 from requests.exceptions import ProxyError, ConnectionError, ReadTimeout, Timeout
+from proxy_config import *
 
-# GET PROXY --> CHECK PROXY --> SAVE PROXY
+
+unchecked = []
+file_path_checked = '{0}/{1}.txt'.format(os.getcwd(), CHECKED_PROXY)
 
 # GET HTML [Per page|ANM|SSL|Port|Type]
 def get_index(xpp, xf1, xf2, xf4, xf5):
@@ -37,15 +39,15 @@ def get_proxy_info(html):
     infos = re.findall(pattern, html)
     return infos
 
-def parse_proxy_info(html,infos):
-    print(f'Get {len(infos)} proxies.')
+def parse_proxy_info(html, infos):
+    print('Get {} proxies.'.format(len(infos)))
     print('Start to get proxy details...')
     port_word = re.findall('\+\(([a-z0-9^]+)\)+', html)
     # DECRYPT PORT VALUE
     port_passwd = {}
-    happycode = (re.findall('table><script type="text/javascript">(.*)</script>', html))[0].split(';')
-    for i in happycode:
-        ii = re.findall('\w+=\d+',i)
+    portcode = (re.findall('table><script type="text/javascript">(.*)</script>', html))[0].split(';')
+    for i in portcode:
+        ii = re.findall('\w+=\d+', i)
         for i in ii:
             kv = i.split('=')
             if len(kv[1]) == 1:
@@ -65,11 +67,11 @@ def parse_proxy_info(html,infos):
         port_digital = ''
         for i in port_word:
             port_digital += port_passwd[i]
-        test_it = f"{proxies_info.get('protocol')}://{proxies_info.get('ip')}:{port_digital}"
+        test_it = '{0}://{1}:{2}'.format(proxies_info.get('protocol'), proxies_info.get('ip'), port_digital)
         if 'socks' in test_it:
-            test_it = f"{proxies_info.get('protocol')}5://{proxies_info.get('ip')}:{port_digital}"
+            test_it = '{0}5://{1}:{2}'.format(proxies_info.get('protocol'), proxies_info.get('ip'), port_digital)
         else:
-            test_it = f"{proxies_info.get('protocol')}://{proxies_info.get('ip')}:{port_digital}"
+            test_it = '{0}://{1}:{2}'.format(proxies_info.get('protocol'), proxies_info.get('ip'), port_digital)
         unchecked.append(test_it)
 
 def ckeck_proxy(list_part):
@@ -77,7 +79,8 @@ def ckeck_proxy(list_part):
         threading.Thread(target=thread_check, args=(proxy, )).start()
 
 def thread_check(proxy):
-    url_test = 'http://ip.cn/'
+    url_test = 'http://checkip.org/'
+    url_tests = 'https://checkip.org/'
     headers = {'User-Agent': ''}
     user_agent_list = [
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
@@ -92,39 +95,41 @@ def thread_check(proxy):
         'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Maxthon/4.4.3.4000'
     ]
     headers['User-Agent'] = random.choice(user_agent_list)
-    proxy_={ 'https': proxy} if 's' in proxy else {'http': proxy}
     try:
-        rsp = requests.get(url_test, headers=headers, proxies=proxy_, timeout=3)
+        if 's' in proxy:
+            proxy_ = {'https': proxy}
+            rsp = requests.get(url_tests, headers=headers, proxies=proxy_, timeout=5)
+        else:
+            proxy_ = {'http': proxy}
+            rsp = requests.get(url_test, headers=headers, proxies=proxy_, timeout=5)
         if rsp.status_code == 200:
             with open(file_path_checked, 'a+') as f:
-                ip_pattern = re.compile('<code>(.*?)</code>')
+                ip_pattern = re.compile('Your IP Address.*?>(.*?)<.*?Country:(.*?)<.*?ISP:(.*?)<', re.S)
                 ip_check = re.findall(ip_pattern, rsp.text)
-                print(f'CHECKING: {ip_check[0]} --> WORKING {proxy} Save to: {file_path_checked}\n')
-                f.write(f'{proxy} {ip_check[1]}\n')
+                print('CHECKING: {0} --> WORKING {1} Save to: {2}\n'.format(ip_check[0][0], proxy, file_path_checked))
+                f.write('{0} | {1} | {2} | {3}\n'.format(format(proxy, '<30'),format(rsp.elapsed.total_seconds(), '<15'), format(ip_check[0][1], '<20'), ip_check[0][2]))
         else:
-            print(f'NOT WORKING: {proxy}\n')
+            print('NOT WORKING: {0}\n'.format(proxy))
     except (ProxyError, ConnectionError, ReadTimeout, Timeout):
-        print(f'BAD PROXY: {proxy}\n')
+        print('BAD PROXY: {0}\n'.format(proxy))
+    except:
+        pass
 
 def main():
     html = get_index(xpp, xf1, xf2, xf4, xf5)
     infos = get_proxy_info(html)
     parse_proxy_info(html, infos)
-    list_part = [unchecked[i:i+50] for i in range(0, len(unchecked), 50)]
-    if os.path.exists(file_path_checked):
-        os.remove(file_path_checked)
-    else:
-        pass
+    with open(file_path_checked,'w') as f:
+        f.write('{0} | {1} | {2} | {3}\n'.format(format('Proxy', '<30'), format('Responese Time', '<15'), format('Region', '<20'), 'ISP'))
     p = Pool(10)
+    list_part = [unchecked[i:i+50] for i in range(0, len(unchecked), 50)]
+    print('Checking proxy...')
     start_time = time.time()
-    print(f'Checking proxy...')
     for i in range(10):
         p.apply_async(ckeck_proxy, (list_part[i], ))
     p.close()
     p.join()
-    print(f'Check proxies takes {time.time() - start_time}s\nDONE.')
+    print('Check proxies takes {0:.2f}s.\nDONE.'.format(time.time() - start_time))
 
 if __name__ == '__main__':
-    unchecked = []
-    file_path_checked = f'{os.getcwd()}/{CHECKED_PROXY}.txt'
     main()

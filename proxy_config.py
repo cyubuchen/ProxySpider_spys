@@ -4,18 +4,12 @@
 # Save proxies file name
 CHECKED_PROXY = 'checked_proxy'
 
-# ==================================================================================== #
-
-# 删掉'#'即启用
-# Delete the hash key before url to make it work.
-
 url = 'http://spys.one/en/socks-proxy-list/'
 
 # url = 'http://spys.one/en/http-proxy-list/'
 
 # url = 'http://spys.one/en/anonymous-proxy-list/'
 
-# ==================================================================================== #
 
 # ==================================================================================== #
 
