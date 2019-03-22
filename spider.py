@@ -31,7 +31,7 @@ def get_index(xpp, xf1, xf2, xf4, xf5):
             return html
         else:
             exit('Can not get the website.')
-    except requests.exceptions.ConnectionError:
+    except ConnectionError:
         exit('Please run your proxy app and try again.')
 
 def get_proxy_info(html):
@@ -120,7 +120,7 @@ def main():
     infos = get_proxy_info(html)
     parse_proxy_info(html, infos)
     with open(file_path_checked,'w') as f:
-        f.write('{0} | {1} | {2} | {3}\n'.format(format('Proxy', '<30'), format('Responese Time', '<15'), format('Region', '<20'), 'ISP'))
+        f.write('{0} | {1} | {2} | {3}\n'.format(format('Proxy', '<30'), format('Response Time', '<15'), format('Region', '<20'), 'ISP'))
     p = Pool(10)
     list_part = [unchecked[i:i+50] for i in range(0, len(unchecked), 50)]
     print('Checking proxy...')
