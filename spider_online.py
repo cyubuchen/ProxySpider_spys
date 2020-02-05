@@ -4,19 +4,22 @@ import time
 import random
 import threading
 from multiprocessing import Pool
-import execjs
 import requests
 from requests.exceptions import ConnectionError
 
 
 # ==================================================================== #
 
-# Save proxy file name
+# Proxy file name
 CHECKED_PROXY = 'checked_proxy'
 
 url = 'http://spys.one/en/socks-proxy-list/'
 
 # ==================================================================== #
+
+
+unchecked = []
+file_path_checked = '{0}/{1}.txt'.format(os.getcwd(), CHECKED_PROXY)
 
 
 # GET HTML [Per page|ANM|SSL|Port|Type]
@@ -27,7 +30,7 @@ def get_index(xpp, xf1, xf2, xf4, xf5):
 		'xf1': xf1,
 		'xf2': xf2,
 		'xf4': xf4,
-		'xf5': xf5,
+		'xf5': xf5
 	}
 	try:
 		rsp = requests.post(url=url, headers=header, data=data)
@@ -40,46 +43,47 @@ def get_index(xpp, xf1, xf2, xf4, xf5):
 		exit('Please run your proxy app and try again.')
 
 
-def parse_proxy_info(html):
+def get_proxy_info(html):
 	pattern = re.compile('onmouseout.*?spy14>(.*?)<.*?>"(.*?)<\/.*?>([HTTPS|SOCKS5]+)', re.S)
 	info = re.findall(pattern, html)
+	return info
+
+
+def parse_proxy_info(html, info):
 	if len(info) > 30:
 		print('PROXY: {}'.format(len(info)))
 	else:
 		exit('Operation too frequent, please change your proxy and try again later.')
-	if 'https-' in url:
-		pattern_js = re.compile('\/javascript">(eval.*\)\))')
-	else:
-		pattern_js = re.compile('table><script.*?>(.*?)<\/script')
-	ec = re.findall(pattern_js, html)
-	if 'eval(' in ec[0]:
-		with open('ejs.js', 'w+', encoding='utf8') as f:
-			f.write(ec[0][5:-1])
-		hc = execjs.eval(open('ejs.js', 'r', encoding='utf8').read())
-		eec = hc.replace(';',';\n')
-	else:
-		eec = ec[0].replace(';', ';\n')
-	ctx = """
-	function port()
-	{
-	%s
-	return port;
-	}
-	"""
+	port_word = re.findall('\+\(([a-z0-9^]+)\)+', html)
+	# DECRYPT PORT VALUE
+	port_passwd = {}
+	portcode = (re.findall('table><script type="text/javascript">(.*)</script>', html))[0].split(';')
+	for i in portcode:
+		ii = re.findall('\w+=\d+', i)
+		for i in ii:
+			kv = i.split('=')
+			if len(kv[1]) == 1:
+				k = kv[0]
+				v = kv[1]
+				port_passwd[k] = v
+			else:
+				pass
+	# GET PROXY INFO
 	for i in info:
-		ip = i[0]
-		protocol = i[2].lower()
-		a = i[1].replace('+(', '+String(').replace('))', ')')
-		b = 'port = ' + a[1:]
-		c = eec + b
-		d = ctx % (str(c))
-		port = execjs.compile(d).call('port')
-		test_it = '{}://{}:{}'.format(protocol, ip, port)
+		proxies_info = {
+			'ip': i[0],
+			'port': i[1],
+			'protocol': i[2]
+		}
+		port_word = re.findall('\((\w+)\^', proxies_info.get('port'))
+		port_digital = ''
+		for i in port_word:
+			port_digital += port_passwd[i]
+		test_it = '{0}://{1}:{2}'.format(proxies_info.get('protocol'), proxies_info.get('ip'), port_digital)
 		unchecked.append(test_it)
-		print(f'\rGet {len(unchecked)}', end='')
 
 
-def check_proxy(list_part):
+def ckeck_proxy(list_part):
 	for proxy in list_part:
 		threading.Thread(target=thread_check, args=(proxy, )).start()
 
@@ -133,21 +137,20 @@ def thread_check(proxy):
 
 def main():
 	html = get_index(5, 0, 0, 0, 2)
-	parse_proxy_info(html)
+	info = get_proxy_info(html)
+	parse_proxy_info(html, info)
 	with open(file_path_checked,'w') as f:
-		f.write('{0} | {1} | {2}\n'.format(format('Proxy', '<30'), format('Response Time', '<15'), format('ISP', '<19')))
+		f.write('{0} | {1} |  {2}\n'.format(format('Proxy', '<30'), format('Response Time', '<15'), format('ISP', '<19')))
 	p = Pool(10)
 	list_part = [unchecked[i:i+50] for i in range(0, len(unchecked), 50)]
-	print('\nChecking...')
+	print('Checking...')
 	start_time = time.time()
 	for i in range(10):
-		p.apply_async(check_proxy, (list_part[i], ))
+		p.apply_async(ckeck_proxy, (list_part[i], ))
 	p.close()
 	p.join()
 	print('Check proxies takes {0:.2f}s.\nDONE.'.format(time.time() - start_time))
 
 
 if __name__ == '__main__':
-	unchecked = []
-	file_path_checked = '{0}/{1}.txt'.format(os.getcwd(), CHECKED_PROXY)
 	main()
